@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Tejidos al Crochet</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #ffb6c1;
+            --secondary-color: #f8e1e5;
+            --accent-color: #d4a5a5;
+            --text-color: #5a3e36;
+            --light-color: #fff9fb;
+            --delete-color: #e74c3c;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--light-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .form-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .image-preview {
+            width: 100%;
+            max-width: 300px;
+            height: 200px;
+            border: 2px dashed var(--accent-color);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+        
+        .image-preview img {
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background-color 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background-color: var(--accent-color);
+        }
+        
+        .export-btn {
+            background-color: #7fb174;
+        }
+        
+        .export-btn:hover {
+            background-color: #6a9c5f;
+        }
+        
+        .delete-btn {
+            background-color: var(--delete-color);
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+        
+        .delete-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .records-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .records-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+        
+        .record-card {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        .record-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .record-image-container {
+            width: 100%;
+            height: 200px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f9f9f9;
+        }
+        
+        .record-image {
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .record-details {
+            padding: 1.5rem;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .record-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+        
+        .record-info {
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .record-price {
+            font-weight: 600;
+            color: var(--accent-color);
+            font-size: 1.1rem;
+            margin-top: auto;
+            padding-top: 1rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #888;
+            grid-column: 1 / -1;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 1rem;
+            color: #7fb174;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .form-container {
+                padding: 1.5rem;
+            }
+            
+            .records-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .records-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .records-header h2 {
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Registro de Tejidos al Crochet</h1>
+        <p>Organiza y registra tus creaciones de tejido</p>
+    </header>
+    
+    <div class="container">
+        <div class="form-container">
+            <h2>Agregar Nuevo Tejido</h2>
+            <form id="crochet-form">
+                <div class="form-group">
+                    <label for="title">Título / Nombre del amigurumi o tejido</label>
+                    <input type="text" id="title" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="date">Fecha</label>
+                    <input type="date" id="date" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="needle-type">Tipo de aguja</label>
+                    <select id="needle-type" required>
+                        <option value="">Selecciona un tipo</option>
+                        <option value="2.0 mm">2.0 mm</option>
+                        <option value="2.5 mm">2.5 mm</option>
+                        <option value="3.0 mm">3.0 mm</option>
+                        <option value="3.5 mm">3.5 mm</option>
+                        <option value="4.0 mm">4.0 mm</option>
+                        <option value="4.5 mm">4.5 mm</option>
+                        <option value="5.0 mm">5.0 mm</option>
+                        <option value="5.5 mm">5.5 mm</option>
+                        <option value="6.0 mm">6.0 mm</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="pattern">Patrón</label>
+                    <textarea id="pattern" placeholder="Describe el patrón utilizado..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="source">Donde encontrarlo</label>
+                    <input type="text" id="source" placeholder="URL, libro, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="measurements">Medidas</label>
+                    <input type="text" id="measurements" placeholder="Ej: 15cm x 20cm">
+                </div>
+                
+                <div class="form-group">
+                    <label for="accessories">Accesorios</label>
+                    <input type="text" id="accessories" placeholder="Ojos, ropa, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="weight">Peso</label>
+                    <input type="text" id="weight" placeholder="Ej: 150g">
+                </div>
+                
+                <div class="form-group">
+                    <label for="price">Precio</label>
+                    <input type="number" id="price" min="0" step="0.01" placeholder="0.00">
+                </div>
+                
+                <div class="form-group">
+                    <label for="photo">Foto del producto</label>
+                    <input type="file" id="photo" accept="image/*">
+                    <div class="image-preview" id="image-preview">
+                        <span>Vista previa de la imagen</span>
+                    </div>
+                </div>
+                
+                <button type="submit">Guardar Registro</button>
+            </form>
+        </div>
+        
+        <div class="records-header">
+            <h2>Registros Guardados</h2>
+            <div>
+                <button class="export-btn" id="export-pdf">Exportar a PDF</button>
+                <button class="export-btn" id="export-pdf-with-images">Exportar PDF con Fotos</button>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">Generando PDF con imágenes, por favor espere...</div>
+        
+        <div class="records-container" id="records-container">
+            <div class="empty-state" id="empty-state">
+                <p>No hay registros guardados aún. ¡Agrega tu primer tejido!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Establecer la fecha actual como valor predeterminado
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date').value = today;
+            
+            // Vista previa de imagen
+            const photoInput = document.getElementById('photo');
+            const imagePreview = document.getElementById('image-preview');
+            
+            photoInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.innerHTML = `<img src="${e.target.result}" alt="Vista previa">`;
+                    }
+                    reader.readAsDataURL(file);
+                } else {
+                    imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
+                }
+            });
+            
+            // Manejar el envío del formulario
+            const form = document.getElementById('crochet-form');
+            const recordsContainer = document.getElementById('records-container');
+            const emptyState = document.getElementById('empty-state');
+            const exportPdfBtn = document.getElementById('export-pdf');
+            const exportPdfWithImagesBtn = document.getElementById('export-pdf-with-images');
+            const loadingElement = document.getElementById('loading');
+            
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Obtener valores del formulario
+                const title = document.getElementById('title').value;
+                const date = document.getElementById('date').value;
+                const needleType = document.getElementById('needle-type').value;
+                const pattern = document.getElementById('pattern').value;
+                const source = document.getElementById('source').value;
+                const measurements = document.getElementById('measurements').value;
+                const accessories = document.getElementById('accessories').value;
+                const weight = document.getElementById('weight').value;
+                const price = document.getElementById('price').value;
+                const photo = document.getElementById('photo').files[0];
+                
+                // Crear objeto con los datos
+                const record = {
+                    id: Date.now(), // ID único para identificar el registro
+                    title,
+                    date,
+                    needleType,
+                    pattern,
+                    source,
+                    measurements,
+                    accessories,
+                    weight,
+                    price,
+                    photo: photo ? URL.createObjectURL(photo) : null
+                };
+                
+                // Guardar en localStorage
+                saveRecord(record);
+                
+                // Actualizar la vista
+                displayRecords();
+                
+                // Limpiar formulario
+                form.reset();
+                imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
+                document.getElementById('date').value = today;
+            });
+            
+            // Función para guardar registro en localStorage
+            function saveRecord(record) {
+                let records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
+                records.push(record);
+                localStorage.setItem('crochetRecords', JSON.stringify(records));
+            }
+            
+            // Función para eliminar registro
+            function deleteRecord(id) {
+                if (confirm('¿Estás segura de que quieres eliminar este registro?')) {
+                    let records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
+                    records = records.filter(record => record.id !== id);
+                    localStorage.setItem('crochetRecords', JSON.stringify(records));
+                    displayRecords();
+                }
+            }
+            
+            // Función para mostrar registros
+            function displayRecords() {
+                const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
+                
+                if (records.length === 0) {
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                
+                recordsContainer.innerHTML = '';
+                
+                records.forEach((record) => {
+                    const recordCard = document.createElement('div');
+                    recordCard.className = 'record-card';
+                    
+                    recordCard.innerHTML = `
+                        <div class="record-image-container">
+                            ${record.photo ? `<img src="${record.photo}" alt="${record.title}" class="record-image">` : 
+                            '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;">Sin imagen</div>'}
+                        </div>
+                        <div class="record-details">
+                            <h3 class="record-title">${record.title}</h3>
+                            <p class="record-info"><strong>Fecha:</strong> ${formatDate(record.date)}</p>
+                            <p class="record-info"><strong>Aguja:</strong> ${record.needleType}</p>
+                            ${record.pattern ? `<p class="record-info"><strong>Patrón:</strong> ${record.pattern}</p>` : ''}
+                            ${record.source ? `<p class="record-info"><strong>Fuente:</strong> ${record.source}</p>` : ''}
+                            ${record.measurements ? `<p class="record-info"><strong>Medidas:</strong> ${record.measurements}</p>` : ''}
+                            ${record.accessories ? `<p class="record-info"><strong>Accesorios:</strong> ${record.accessories}</p>` : ''}
+                            ${record.weight ? `<p class="record-info"><strong>Peso:</strong> ${record.weight}</p>` : ''}
+                            ${record.price ? `<p class="record-price">Precio: $${parseFloat(record.price).toFixed(2)}</p>` : ''}
+                            <button class="delete-btn" data-id="${record.id}">Eliminar</button>
+                        </div>
+                    `;
+                    
+                    recordsContainer.appendChild(recordCard);
+                });
+                
+                // Agregar event listeners a los botones de eliminar
+                document.querySelectorAll('.delete-btn').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const id = parseInt(this.getAttribute('data-id'));
+                        deleteRecord(id);
+                    });
+                });
+            }
+            
+            // Función para formatear fecha
+            function formatDate(dateString) {
+                const options = { year: 'numeric', month: 'long', day: 'numeric' };
+                return new Date(dateString).toLocaleDateString('es-ES', options);
+            }
+            
+            // Función para exportar a PDF sin imágenes
+            exportPdfBtn.addEventListener('click', function() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Título del documento
+                doc.setFontSize(20);
+                doc.text('Registro de Tejidos al Crochet', 105, 15, { align: 'center' });
+                
+                const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
+                
+                if (records.length === 0) {
+                    doc.setFontSize(12);
+                    doc.text('No hay registros guardados.', 20, 30);
+                    doc.save('registro_tejidos.pdf');
+                    return;
+                }
+                
+                let yPosition = 30;
+                
+                records.forEach((record, index) => {
+                    // Si no es la primera página y no hay suficiente espacio, agregar nueva página
+                    if (yPosition > 270 && index > 0) {
+                        doc.addPage();
+                        yPosition = 20;
+                    }
+                    
+                    // Título del tejido
+                    doc.setFontSize(14);
+                    doc.text(record.title, 20, yPosition);
+                    yPosition += 8;
+                    
+                    // Información del tejido
+                    doc.setFontSize(10);
+                    doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
+                    yPosition += 5;
+                    doc.text(`Aguja: ${record.needleType}`, 20, yPosition);
+                    yPosition += 5;
+                    
+                    if (record.pattern) {
+                        const patternLines = doc.splitTextToSize(`Patrón: ${record.pattern}`, 170);
+                        doc.text(patternLines, 20, yPosition);
+                        yPosition += patternLines.length * 5;
+                    }
+                    
+                    if (record.source) {
+                        doc.text(`Fuente: ${record.source}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
+                    if (record.measurements) {
+                        doc.text(`Medidas: ${record.measurements}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
+                    if (record.accessories) {
+                        doc.text(`Accesorios: ${record.accessories}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
+                    if (record.weight) {
+                        doc.text(`Peso: ${record.weight}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
+                    if (record.price) {
+                        doc.text(`Precio: $${parseFloat(record.price).toFixed(2)}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
+                    // Línea separadora
+                    doc.line(20, yPosition, 190, yPosition);
+                    yPosition += 10;
+                });
+                
+                // Guardar el PDF
+                doc.save('registro_tejidos.pdf');
+            });
+            
+            // Función para exportar a PDF con imágenes
+            exportPdfWithImagesBtn.addEventListener('click', async function() {
+                loadingElement.style.display = 'block';
+                
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
+                
+                if (records.length === 0) {
+                    doc.setFontSize(12);
+                    doc.text('No hay registros guardados.', 20, 30);
+                    doc.save('registro_tejidos_con_fotos.pdf');
+                    loadingElement.style.display = 'none';
+                    return;
+                }
+                
+                // Título del documento
+                doc.setFontSize(20);
+                doc.text('Registro de Tejidos al Crochet', 105, 15, { align: 'center' });
+                
+                let yPosition = 30;
+                
+                for (let i = 0; i < records.length; i++) {
+                    const record = records[i];
+                    
+                    // Si no es la primera página y no hay suficiente espacio, agregar nueva página
+                    if (yPosition > 150 && i > 0) {
+                        doc.addPage();
+                        yPosition = 20;
+                    }
+                    
+                    // Título del tejido
+                    doc.setFontSize(14);
+                    doc.text(record.title, 20, yPosition);
+                    yPosition += 8;
+                    
+                    // Agregar imagen si existe
+                    if (record.photo) {
+                        try {
+                            // Convertir la imagen a formato que jsPDF pueda usar
+                            const img = new Image();
+                            img.crossOrigin = "Anonymous";
+                            img.src = record.photo;
+                            
+                            await new Promise((resolve, reject) => {
+                                img.onload = resolve;
+                                img.onerror = reject;
+                            });
+                            
+                            // Agregar imagen al PDF (tamaño reducido para caber mejor)
+                            const imgWidth = 40;
+                            const imgHeight = 40;
+                            doc.addImage(img, 'JPEG', 20, yPosition, imgWidth, imgHeight);
+                            
+                            // Ajustar posición del texto para que no se superponga con la imagen
+                            const textStartX = 70;
+                            
+                            // Información del tejido al lado de la imagen
+                            doc.setFontSize(10);
+                            doc.text(`Fecha: ${formatDate(record.date)}`, textStartX, yPosition + 5);
+                            doc.text(`Aguja: ${record.needleType}`, textStartX, yPosition + 10);
+                            
+                            if (record.measurements) {
+                                doc.text(`Medidas: ${record.measurements}`, textStartX, yPosition + 15);
+                            }
+                            
+                            if (record.weight) {
+                                doc.text(`Peso: ${record.weight}`, textStartX, yPosition + 20);
+                            }
+                            
+                            if (record.price) {
+                                doc.text(`Precio: $${parseFloat(record.price).toFixed(2)}`, textStartX, yPosition + 25);
+                            }
+                            
+                            yPosition += 45; // Espacio después de la imagen
+                            
+                        } catch (error) {
+                            console.error('Error al cargar la imagen:', error);
+                            // Si hay error con la imagen, continuar sin ella
+                            doc.setFontSize(10);
+                            doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
+                            yPosition += 5;
+                        }
+                    } else {
+                        // Sin imagen, mostrar solo texto
+                        doc.setFontSize(10);
+                        doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
+                    doc.text(`Aguja: ${record.needleType}`, 20, yPosition);
+                    yPosition += 5;
+                    
+                    if (record.pattern) {
+                        const patternLines = doc.splitTextToSize(`Patrón: ${record.pattern}`, 170);
+                        doc.text(patternLines, 20, yPosition);
+                        yPosition += patternLines.length * 5;
+                    }
+                    
+                    if (record.source) {
+                        const sourceLines = doc.splitTextToSize(`Fuente: ${record.source}`, 170);
+                        doc.text(sourceLines, 20, yPosition);
+                        yPosition += sourceLines.length * 5;
+                    }
+                    
+                    if (record.accessories) {
+                        const accessoriesLines = doc.splitTextToSize(`Accesorios: ${record.accessories}`, 170);
+                        doc.text(accessoriesLines, 20, yPosition);
+                        yPosition += accessoriesLines.length * 5;
+                    }
+                    
+                    // Línea separadora
+                    doc.line(20, yPosition, 190, yPosition);
+                    yPosition += 15;
+                }
+                
+                // Guardar el PDF
+                doc.save('registro_tejidos_con_fotos.pdf');
+                loadingElement.style.display = 'none';
+            });
+            
+            // Mostrar registros al cargar la página
+            displayRecords();
+        });
+    </script>
+</body>
+</html>
