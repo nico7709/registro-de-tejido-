@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registro de Tejidos al Crochet</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root {
             --primary-color: #ffb6c1;
@@ -99,6 +98,16 @@
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+        }
+
+        .compression-info {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background-color: #f0f8f0;
+            border-radius: 4px;
+            border-left: 4px solid #7fb174;
         }
         
         button {
@@ -287,6 +296,15 @@
             font-weight: bold;
         }
         
+        .debug-info {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -327,17 +345,17 @@
             <h2>Agregar Nuevo Tejido</h2>
             <form id="crochet-form">
                 <div class="form-group">
-                    <label for="title">Título / Nombre del amigurumi o tejido</label>
+                    <label for="title">Título / Nombre del amigurumi o tejido *</label>
                     <input type="text" id="title" required>
                 </div>
                 
                 <div class="form-group">
-                    <label for="date">Fecha</label>
+                    <label for="date">Fecha *</label>
                     <input type="date" id="date" required>
                 </div>
                 
                 <div class="form-group">
-                    <label for="needle-type">Tipo de aguja</label>
+                    <label for="needle-type">Tipo de aguja *</label>
                     <select id="needle-type" required>
                         <option value="">Selecciona un tipo</option>
                         <option value="2.0 mm">2.0 mm</option>
@@ -394,9 +412,16 @@
                     <div class="image-preview" id="image-preview">
                         <span>Vista previa de la imagen</span>
                     </div>
+                    <div class="compression-info" id="compression-info">
+                        ✅ Las imágenes se comprimen automáticamente para ahorrar espacio
+                    </div>
                 </div>
                 
-                <button type="submit">Guardar Registro</button>
+                <button type="submit" id="submit-btn">Guardar Registro</button>
+                
+                <div class="debug-info" id="debug-info" style="display: none;">
+                    <!-- Información de depuración -->
+                </div>
             </form>
         </div>
         
@@ -404,8 +429,7 @@
             <h2>Registros Guardados</h2>
             <div class="buttons">
                 <button class="filter-btn" id="toggle-filters">Filtrar por Etiquetas</button>
-                <button class="export-btn" id="export-pdf">Exportar a PDF</button>
-                <button class="export-btn" id="export-pdf-with-images">Exportar PDF con Fotos</button>
+                <button class="export-btn" id="export-pdf">Exportar a PDF con Fotos</button>
             </div>
         </div>
         
@@ -417,7 +441,7 @@
             <button class="filter-btn" id="clear-filters" style="margin-top: 1rem;">Limpiar Filtros</button>
         </div>
         
-        <div class="loading" id="loading">Generando PDF con imágenes, por favor espere...</div>
+        <div class="loading" id="loading">Generando PDF con fotos, por favor espere...</div>
         
         <div class="records-container" id="records-container">
             <div class="empty-state" id="empty-state">
@@ -432,16 +456,90 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('date').value = today;
             
-            // Vista previa de imagen
+            // Elementos del DOM
             const photoInput = document.getElementById('photo');
             const imagePreview = document.getElementById('image-preview');
+            const form = document.getElementById('crochet-form');
+            const submitBtn = document.getElementById('submit-btn');
+            const recordsContainer = document.getElementById('records-container');
+            const emptyState = document.getElementById('empty-state');
+            const exportPdfBtn = document.getElementById('export-pdf');
+            const loadingElement = document.getElementById('loading');
+            const toggleFiltersBtn = document.getElementById('toggle-filters');
+            const filtersContainer = document.getElementById('filters-container');
+            const filterTagsContainer = document.getElementById('filter-tags');
+            const clearFiltersBtn = document.getElementById('clear-filters');
+            const debugInfo = document.getElementById('debug-info');
+            const compressionInfo = document.getElementById('compression-info');
             
+            let activeFilters = [];
+            
+            // Función para comprimir imagen
+            function compressImage(file, callback) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Tamaño máximo para imágenes (800px en el lado más largo)
+                        const MAX_SIZE = 800;
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        // Redimensionar manteniendo la relación de aspecto
+                        if (width > height && width > MAX_SIZE) {
+                            height = (height * MAX_SIZE) / width;
+                            width = MAX_SIZE;
+                        } else if (height > MAX_SIZE) {
+                            width = (width * MAX_SIZE) / height;
+                            height = MAX_SIZE;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        // Dibujar imagen redimensionada
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Comprimir a JPEG con calidad del 70%
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                        
+                        // Calcular reducción de tamaño
+                        const originalSize = file.size;
+                        const compressedSize = Math.round((compressedBase64.length * 3) / 4); // Aproximación Base64
+                        const reduction = Math.round((1 - compressedSize / originalSize) * 100);
+                        
+                        // Mostrar información de compresión
+                        compressionInfo.innerHTML = `
+                            ✅ Imagen comprimida: 
+                            De ${(originalSize / 1024).toFixed(0)}KB a ${(compressedSize / 1024).toFixed(0)}KB 
+                            (${reduction}% de reducción)
+                        `;
+                        
+                        callback(compressedBase64);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            // Función para mostrar información de depuración
+            function showDebugInfo(message) {
+                debugInfo.style.display = 'block';
+                debugInfo.innerHTML = `<strong>Depuración:</strong> ${message}`;
+                console.log(message);
+            }
+            
+            // Vista previa de imagen
             photoInput.addEventListener('change', function() {
                 const file = this.files[0];
                 if (file) {
                     const reader = new FileReader();
                     reader.onload = function(e) {
                         imagePreview.innerHTML = `<img src="${e.target.result}" alt="Vista previa">`;
+                        compressionInfo.innerHTML = '✅ Las imágenes se comprimen automáticamente para ahorrar espacio';
                     }
                     reader.readAsDataURL(file);
                 } else {
@@ -450,114 +548,126 @@
             });
             
             // Manejar el envío del formulario
-            const form = document.getElementById('crochet-form');
-            const recordsContainer = document.getElementById('records-container');
-            const emptyState = document.getElementById('empty-state');
-            const exportPdfBtn = document.getElementById('export-pdf');
-            const exportPdfWithImagesBtn = document.getElementById('export-pdf-with-images');
-            const loadingElement = document.getElementById('loading');
-            const toggleFiltersBtn = document.getElementById('toggle-filters');
-            const filtersContainer = document.getElementById('filters-container');
-            const filterTagsContainer = document.getElementById('filter-tags');
-            const clearFiltersBtn = document.getElementById('clear-filters');
-            
-            let activeFilters = [];
-            
-            // Función para convertir imagen a Base64 y guardarla
-            function convertImageToBase64(file, callback) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    callback(e.target.result);
-                };
-                reader.readAsDataURL(file);
-            }
-            
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Guardando...';
                 
-                // Obtener valores del formulario
-                const title = document.getElementById('title').value;
-                const date = document.getElementById('date').value;
-                const needleType = document.getElementById('needle-type').value;
-                const pattern = document.getElementById('pattern').value;
-                const source = document.getElementById('source').value;
-                const measurements = document.getElementById('measurements').value;
-                const accessories = document.getElementById('accessories').value;
-                const weight = document.getElementById('weight').value;
-                const price = document.getElementById('price').value;
-                const tagsInput = document.getElementById('tags').value;
-                const photo = document.getElementById('photo').files[0];
+                showDebugInfo('Iniciando proceso de guardado...');
                 
-                // Procesar etiquetas
-                const tags = tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-                
-                // Si hay foto, convertir a Base64 para guardarla correctamente
-                if (photo) {
-                    convertImageToBase64(photo, function(base64Image) {
-                        // Crear objeto con los datos
-                        const record = {
-                            id: Date.now(), // ID único para identificar el registro
-                            title,
-                            date,
-                            needleType,
-                            pattern,
-                            source,
-                            measurements,
-                            accessories,
-                            weight,
-                            price,
-                            tags,
-                            photo: base64Image
-                        };
-                        
-                        // Guardar en localStorage
+                try {
+                    // Obtener valores del formulario
+                    const title = document.getElementById('title').value;
+                    const date = document.getElementById('date').value;
+                    const needleType = document.getElementById('needle-type').value;
+                    const pattern = document.getElementById('pattern').value;
+                    const source = document.getElementById('source').value;
+                    const measurements = document.getElementById('measurements').value;
+                    const accessories = document.getElementById('accessories').value;
+                    const weight = document.getElementById('weight').value;
+                    const price = document.getElementById('price').value;
+                    const tagsInput = document.getElementById('tags').value;
+                    const photo = document.getElementById('photo').files[0];
+                    
+                    showDebugInfo(`Datos capturados: ${title}, ${date}, ${needleType}`);
+                    
+                    // Validaciones básicas
+                    if (!title || !date || !needleType) {
+                        throw new Error('Por favor completa los campos obligatorios (*)');
+                    }
+                    
+                    // Procesar etiquetas
+                    const tags = tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+                    
+                    // Si hay foto, comprimirla
+                    if (photo) {
+                        showDebugInfo('Comprimiendo imagen...');
+                        compressImage(photo, function(compressedImage) {
+                            try {
+                                const record = createRecord(title, date, needleType, pattern, source, 
+                                                          measurements, accessories, weight, price, 
+                                                          tags, compressedImage);
+                                saveRecord(record);
+                                showSuccess();
+                            } catch (error) {
+                                showError(error.message);
+                            }
+                        });
+                    } else {
+                        // Sin foto
+                        showDebugInfo('Guardando sin imagen...');
+                        const record = createRecord(title, date, needleType, pattern, source, 
+                                                  measurements, accessories, weight, price, 
+                                                  tags, null);
                         saveRecord(record);
-                        
-                        // Actualizar la vista
-                        displayRecords();
-                        updateFilterTags();
-                        
-                        // Limpiar formulario
-                        form.reset();
-                        imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
-                        document.getElementById('date').value = today;
-                    });
-                } else {
-                    // Crear objeto con los datos sin foto
-                    const record = {
-                        id: Date.now(),
-                        title,
-                        date,
-                        needleType,
-                        pattern,
-                        source,
-                        measurements,
-                        accessories,
-                        weight,
-                        price,
-                        tags,
-                        photo: null
-                    };
-                    
-                    // Guardar en localStorage
-                    saveRecord(record);
-                    
-                    // Actualizar la vista
-                    displayRecords();
-                    updateFilterTags();
-                    
-                    // Limpiar formulario
-                    form.reset();
-                    imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
-                    document.getElementById('date').value = today;
+                        showSuccess();
+                    }
+                } catch (error) {
+                    showError(error.message);
                 }
             });
             
-            // Función para guardar registro en localStorage
+            // Función para crear objeto de registro
+            function createRecord(title, date, needleType, pattern, source, measurements, 
+                                accessories, weight, price, tags, photo) {
+                return {
+                    id: Date.now(),
+                    title,
+                    date,
+                    needleType,
+                    pattern,
+                    source,
+                    measurements,
+                    accessories,
+                    weight,
+                    price,
+                    tags,
+                    photo: photo
+                };
+            }
+            
+            // Función para guardar registro
             function saveRecord(record) {
+                showDebugInfo('Guardando en localStorage...');
                 let records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
                 records.push(record);
                 localStorage.setItem('crochetRecords', JSON.stringify(records));
+                showDebugInfo('Registro guardado exitosamente');
+            }
+            
+            // Función para mostrar éxito
+            function showSuccess() {
+                showDebugInfo('Proceso completado exitosamente');
+                alert('¡Registro guardado correctamente!');
+                
+                // Actualizar la vista
+                displayRecords();
+                updateFilterTags();
+                
+                // Limpiar formulario
+                form.reset();
+                imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
+                document.getElementById('date').value = today;
+                compressionInfo.innerHTML = '✅ Las imágenes se comprimen automáticamente para ahorrar espacio';
+                
+                // Restaurar botón
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Guardar Registro';
+                
+                // Ocultar información de depuración después de 5 segundos
+                setTimeout(() => {
+                    debugInfo.style.display = 'none';
+                }, 5000);
+            }
+            
+            // Función para mostrar error
+            function showError(message) {
+                showDebugInfo(`ERROR: ${message}`);
+                alert(`Error: ${message}`);
+                
+                // Restaurar botón
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Guardar Registro';
             }
             
             // Función para eliminar registro
@@ -594,7 +704,6 @@
                 }
                 
                 emptyState.style.display = 'none';
-                
                 recordsContainer.innerHTML = '';
                 
                 filteredRecords.forEach((record) => {
@@ -692,215 +801,195 @@
                 updateFilterTags();
             });
             
-            // Función para exportar a PDF sin imágenes
-            exportPdfBtn.addEventListener('click', function() {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                
-                // Título del documento
-                doc.setFontSize(20);
-                doc.text('Registro de Tejidos al Crochet', 105, 15, { align: 'center' });
-                
-                const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
-                
-                if (records.length === 0) {
-                    doc.setFontSize(12);
-                    doc.text('No hay registros guardados.', 20, 30);
-                    doc.save('registro_tejidos.pdf');
-                    return;
-                }
-                
-                let yPosition = 30;
-                
-                records.forEach((record, index) => {
-                    // Si no es la primera página y no hay suficiente espacio, agregar nueva página
-                    if (yPosition > 270 && index > 0) {
-                        doc.addPage();
-                        yPosition = 20;
-                    }
-                    
-                    // Título del tejido
-                    doc.setFontSize(14);
-                    doc.text(record.title, 20, yPosition);
-                    yPosition += 8;
-                    
-                    // Información del tejido
-                    doc.setFontSize(10);
-                    doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
-                    yPosition += 5;
-                    doc.text(`Aguja: ${record.needleType}`, 20, yPosition);
-                    yPosition += 5;
-                    
-                    if (record.pattern) {
-                        const patternLines = doc.splitTextToSize(`Patrón: ${record.pattern}`, 170);
-                        doc.text(patternLines, 20, yPosition);
-                        yPosition += patternLines.length * 5;
-                    }
-                    
-                    if (record.source) {
-                        doc.text(`Fuente: ${record.source}`, 20, yPosition);
-                        yPosition += 5;
-                    }
-                    
-                    if (record.measurements) {
-                        doc.text(`Medidas: ${record.measurements}`, 20, yPosition);
-                        yPosition += 5;
-                    }
-                    
-                    if (record.accessories) {
-                        doc.text(`Accesorios: ${record.accessories}`, 20, yPosition);
-                        yPosition += 5;
-                    }
-                    
-                    if (record.weight) {
-                        doc.text(`Peso: ${record.weight}`, 20, yPosition);
-                        yPosition += 5;
-                    }
-                    
-                    if (record.price) {
-                        doc.text(`Precio: $${parseFloat(record.price).toFixed(2)}`, 20, yPosition);
-                        yPosition += 5;
-                    }
-                    
-                    if (record.tags && record.tags.length > 0) {
-                        doc.text(`Etiquetas: ${record.tags.join(', ')}`, 20, yPosition);
-                        yPosition += 5;
-                    }
-                    
-                    // Línea separadora
-                    doc.line(20, yPosition, 190, yPosition);
-                    yPosition += 10;
-                });
-                
-                // Guardar el PDF
-                doc.save('registro_tejidos.pdf');
-            });
-            
-            // Función para exportar a PDF con imágenes
-            exportPdfWithImagesBtn.addEventListener('click', async function() {
+            // Función para exportar a PDF CON FOTOS
+            exportPdfBtn.addEventListener('click', async function() {
                 loadingElement.style.display = 'block';
+                loadingElement.textContent = 'Generando PDF con fotos, por favor espere...';
                 
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
-                
-                if (records.length === 0) {
-                    doc.setFontSize(12);
-                    doc.text('No hay registros guardados.', 20, 30);
-                    doc.save('registro_tejidos_con_fotos.pdf');
-                    loadingElement.style.display = 'none';
-                    return;
-                }
-                
-                // Título del documento
-                doc.setFontSize(20);
-                doc.text('Registro de Tejidos al Crochet', 105, 15, { align: 'center' });
-                
-                let yPosition = 30;
-                
-                for (let i = 0; i < records.length; i++) {
-                    const record = records[i];
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
                     
-                    // Si no es la primera página y no hay suficiente espacio, agregar nueva página
-                    if (yPosition > 150 && i > 0) {
-                        doc.addPage();
-                        yPosition = 20;
+                    if (records.length === 0) {
+                        doc.setFontSize(12);
+                        doc.text('No hay registros guardados.', 20, 30);
+                        doc.save('registro_tejidos.pdf');
+                        loadingElement.style.display = 'none';
+                        return;
                     }
                     
-                    // Título del tejido
-                    doc.setFontSize(14);
-                    doc.text(record.title, 20, yPosition);
-                    yPosition += 8;
+                    // Configuración de la página
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const margin = 20;
+                    const contentWidth = pageWidth - (2 * margin);
                     
-                    // Agregar imagen si existe
-                    if (record.photo) {
-                        try {
-                            const img = new Image();
-                            img.src = record.photo;
+                    // Título del documento
+                    doc.setFontSize(20);
+                    doc.setTextColor(40, 40, 40);
+                    doc.text('Catálogo de Tejidos al Crochet', pageWidth / 2, 20, { align: 'center' });
+                    
+                    // Fecha de generación
+                    doc.setFontSize(10);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text(`Generado el: ${new Date().toLocaleDateString('es-ES')}`, pageWidth - margin, 15, { align: 'right' });
+                    
+                    let yPosition = 40;
+                    let recordCount = 0;
+                    
+                    for (let i = 0; i < records.length; i++) {
+                        const record = records[i];
+                        
+                        // Verificar si necesitamos nueva página
+                        if (yPosition > 250 && i > 0) {
+                            doc.addPage();
+                            yPosition = 20;
                             
-                            await new Promise((resolve, reject) => {
-                                img.onload = resolve;
-                                img.onerror = reject;
-                            });
-                            
-                            // Agregar imagen al PDF
-                            const imgWidth = 40;
-                            const imgHeight = 40;
-                            doc.addImage(img, 'JPEG', 20, yPosition, imgWidth, imgHeight);
-                            
-                            // Ajustar posición del texto
-                            const textStartX = 70;
-                            
-                            // Información del tejido al lado de la imagen
+                            // Título en páginas adicionales
+                            doc.setFontSize(16);
+                            doc.setTextColor(40, 40, 40);
+                            doc.text('Catálogo de Tejidos al Crochet (continuación)', pageWidth / 2, 15, { align: 'center' });
+                            yPosition = 30;
+                        }
+                        
+                        // Actualizar estado de carga
+                        loadingElement.textContent = `Generando PDF... (${i + 1}/${records.length})`;
+                        
+                        // Fondo de la tarjeta
+                        doc.setFillColor(255, 255, 255);
+                        doc.rect(margin - 5, yPosition - 5, contentWidth + 10, 80, 'F');
+                        doc.setDrawColor(200, 200, 200);
+                        doc.rect(margin - 5, yPosition - 5, contentWidth + 10, 80, 'S');
+                        
+                        // Título del tejido
+                        doc.setFontSize(14);
+                        doc.setTextColor(90, 62, 54); // Color del texto principal
+                        doc.text(record.title, margin, yPosition);
+                        yPosition += 7;
+                        
+                        // Información en dos columnas
+                        const col1X = margin;
+                        const col2X = margin + contentWidth / 2;
+                        
+                        doc.setFontSize(9);
+                        doc.setTextColor(80, 80, 80);
+                        
+                        // Columna 1: Información básica
+                        doc.text(`Fecha: ${formatDate(record.date)}`, col1X, yPosition);
+                        doc.text(`Aguja: ${record.needleType}`, col1X, yPosition + 5);
+                        
+                        if (record.measurements) {
+                            doc.text(`Medidas: ${record.measurements}`, col1X, yPosition + 10);
+                        }
+                        
+                        if (record.weight) {
+                            doc.text(`Peso: ${record.weight}`, col1X, yPosition + 15);
+                        }
+                        
+                        if (record.price) {
                             doc.setFontSize(10);
-                            doc.text(`Fecha: ${formatDate(record.date)}`, textStartX, yPosition + 5);
-                            doc.text(`Aguja: ${record.needleType}`, textStartX, yPosition + 10);
-                            
-                            if (record.measurements) {
-                                doc.text(`Medidas: ${record.measurements}`, textStartX, yPosition + 15);
-                            }
-                            
-                            if (record.weight) {
-                                doc.text(`Peso: ${record.weight}`, textStartX, yPosition + 20);
-                            }
-                            
-                            if (record.price) {
-                                doc.text(`Precio: $${parseFloat(record.price).toFixed(2)}`, textStartX, yPosition + 25);
-                            }
-                            
-                            yPosition += 45;
-                            
-                        } catch (error) {
-                            console.error('Error al cargar la imagen:', error);
-                            doc.setFontSize(10);
-                            doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
+                            doc.setTextColor(212, 165, 165); // Color de acento
+                            doc.text(`Precio: $${parseFloat(record.price).toFixed(2)}`, col1X, yPosition + 22);
+                            doc.setFontSize(9);
+                            doc.setTextColor(80, 80, 80);
+                        }
+                        
+                        // Columna 2: Información adicional
+                        if (record.pattern) {
+                            const patternLines = doc.splitTextToSize(`Patrón: ${record.pattern}`, contentWidth / 2 - 10);
+                            doc.text(patternLines, col2X, yPosition);
+                            yPosition += patternLines.length * 3.5;
+                        }
+                        
+                        if (record.source) {
+                            const sourceLines = doc.splitTextToSize(`Fuente: ${record.source}`, contentWidth / 2 - 10);
+                            doc.text(sourceLines, col2X, yPosition);
+                            yPosition += sourceLines.length * 3.5;
+                        }
+                        
+                        if (record.accessories) {
+                            doc.text(`Accesorios: ${record.accessories}`, col2X, yPosition);
                             yPosition += 5;
                         }
-                    } else {
-                        doc.setFontSize(10);
-                        doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
-                        yPosition += 5;
+                        
+                        // Etiquetas
+                        if (record.tags && record.tags.length > 0) {
+                            doc.text(`Etiquetas: ${record.tags.join(', ')}`, margin, yPosition + 5);
+                        }
+                        
+                        // IMAGEN - Si existe
+                        if (record.photo) {
+                            try {
+                                const img = new Image();
+                                img.src = record.photo;
+                                
+                                await new Promise((resolve, reject) => {
+                                    img.onload = resolve;
+                                    img.onerror = reject;
+                                    // Timeout por seguridad
+                                    setTimeout(resolve, 1000);
+                                });
+                                
+                                // Tamaño de la imagen en el PDF
+                                const imgWidth = 30;
+                                const imgHeight = 30;
+                                const imgX = pageWidth - margin - imgWidth - 5;
+                                const imgY = yPosition - 40;
+                                
+                                // Agregar imagen al PDF
+                                doc.addImage(img, 'JPEG', imgX, imgY, imgWidth, imgHeight);
+                                
+                                // Marco alrededor de la imagen
+                                doc.setDrawColor(180, 180, 180);
+                                doc.rect(imgX - 1, imgY - 1, imgWidth + 2, imgHeight + 2, 'S');
+                                
+                            } catch (error) {
+                                console.warn('No se pudo cargar la imagen para el PDF:', error);
+                                // Continuar sin imagen
+                            }
+                        }
+                        
+                        yPosition += 45;
+                        recordCount++;
+                        
+                        // Línea separadora entre registros
+                        if (i < records.length - 1) {
+                            doc.setDrawColor(220, 220, 220);
+                            doc.line(margin, yPosition - 10, pageWidth - margin, yPosition - 10);
+                        }
                     }
                     
-                    doc.text(`Aguja: ${record.needleType}`, 20, yPosition);
-                    yPosition += 5;
-                    
-                    if (record.pattern) {
-                        const patternLines = doc.splitTextToSize(`Patrón: ${record.pattern}`, 170);
-                        doc.text(patternLines, 20, yPosition);
-                        yPosition += patternLines.length * 5;
+                    // Pie de página
+                    const totalPages = doc.internal.getNumberOfPages();
+                    for (let i = 1; i <= totalPages; i++) {
+                        doc.setPage(i);
+                        doc.setFontSize(8);
+                        doc.setTextColor(150, 150, 150);
+                        doc.text(`Página ${i} de ${totalPages} - ${recordCount} registros`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
                     }
                     
-                    if (record.source) {
-                        const sourceLines = doc.splitTextToSize(`Fuente: ${record.source}`, 170);
-                        doc.text(sourceLines, 20, yPosition);
-                        yPosition += sourceLines.length * 5;
-                    }
+                    // Guardar el PDF
+                    doc.save(`catalogo_tejidos_${new Date().toISOString().split('T')[0]}.pdf`);
                     
-                    if (record.accessories) {
-                        const accessoriesLines = doc.splitTextToSize(`Accesorios: ${record.accessories}`, 170);
-                        doc.text(accessoriesLines, 20, yPosition);
-                        yPosition += accessoriesLines.length * 5;
-                    }
+                    loadingElement.textContent = '¡PDF generado exitosamente!';
+                    setTimeout(() => {
+                        loadingElement.style.display = 'none';
+                    }, 2000);
                     
-                    if (record.tags && record.tags.length > 0) {
-                        doc.text(`Etiquetas: ${record.tags.join(', ')}`, 20, yPosition);
-                        yPosition += 5;
-                    }
-                    
-                    // Línea separadora
-                    doc.line(20, yPosition, 190, yPosition);
-                    yPosition += 15;
+                } catch (error) {
+                    console.error('Error al generar PDF:', error);
+                    loadingElement.textContent = 'Error al generar el PDF. Intenta nuevamente.';
+                    setTimeout(() => {
+                        loadingElement.style.display = 'none';
+                    }, 3000);
                 }
-                
-                // Guardar el PDF
-                doc.save('registro_tejidos_con_fotos.pdf');
-                loadingElement.style.display = 'none';
             });
             
             // Mostrar registros al cargar la página
             displayRecords();
             updateFilterTags();
+            
+            showDebugInfo('Aplicación cargada correctamente. Las imágenes se comprimen automáticamente.');
         });
     </script>
 </body>
