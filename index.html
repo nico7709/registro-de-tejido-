@@ -14,6 +14,7 @@
             --text-color: #5a3e36;
             --light-color: #fff9fb;
             --delete-color: #e74c3c;
+            --filter-color: #7fb174;
         }
         
         * {
@@ -137,11 +138,58 @@
             background-color: #c0392b;
         }
         
+        .filter-btn {
+            background-color: var(--filter-color);
+        }
+        
+        .filter-btn:hover {
+            background-color: #6a9c5f;
+        }
+        
         .records-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .filters-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            display: none;
+        }
+        
+        .filters-container.active {
+            display: block;
+        }
+        
+        .filter-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .tag {
+            background-color: var(--secondary-color);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .tag:hover {
+            background-color: var(--primary-color);
+        }
+        
+        .tag.active {
+            background-color: var(--filter-color);
+            color: white;
         }
         
         .records-container {
@@ -210,6 +258,20 @@
             padding-top: 1rem;
         }
         
+        .record-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .record-tag {
+            background-color: var(--secondary-color);
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+        
         .empty-state {
             text-align: center;
             padding: 3rem;
@@ -245,6 +307,11 @@
             
             .records-header h2 {
                 margin-bottom: 1rem;
+            }
+            
+            .records-header .buttons {
+                display: flex;
+                flex-wrap: wrap;
             }
         }
     </style>
@@ -317,6 +384,11 @@
                 </div>
                 
                 <div class="form-group">
+                    <label for="tags">Etiquetas (separadas por comas)</label>
+                    <input type="text" id="tags" placeholder="Ej: amigurumi, animal, regalo, venta">
+                </div>
+                
+                <div class="form-group">
                     <label for="photo">Foto del producto</label>
                     <input type="file" id="photo" accept="image/*">
                     <div class="image-preview" id="image-preview">
@@ -330,10 +402,19 @@
         
         <div class="records-header">
             <h2>Registros Guardados</h2>
-            <div>
+            <div class="buttons">
+                <button class="filter-btn" id="toggle-filters">Filtrar por Etiquetas</button>
                 <button class="export-btn" id="export-pdf">Exportar a PDF</button>
                 <button class="export-btn" id="export-pdf-with-images">Exportar PDF con Fotos</button>
             </div>
+        </div>
+        
+        <div class="filters-container" id="filters-container">
+            <h3>Filtrar por etiquetas:</h3>
+            <div class="filter-tags" id="filter-tags">
+                <!-- Las etiquetas se generarán automáticamente aquí -->
+            </div>
+            <button class="filter-btn" id="clear-filters" style="margin-top: 1rem;">Limpiar Filtros</button>
         </div>
         
         <div class="loading" id="loading">Generando PDF con imágenes, por favor espere...</div>
@@ -375,6 +456,21 @@
             const exportPdfBtn = document.getElementById('export-pdf');
             const exportPdfWithImagesBtn = document.getElementById('export-pdf-with-images');
             const loadingElement = document.getElementById('loading');
+            const toggleFiltersBtn = document.getElementById('toggle-filters');
+            const filtersContainer = document.getElementById('filters-container');
+            const filterTagsContainer = document.getElementById('filter-tags');
+            const clearFiltersBtn = document.getElementById('clear-filters');
+            
+            let activeFilters = [];
+            
+            // Función para convertir imagen a Base64 y guardarla
+            function convertImageToBase64(file, callback) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    callback(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
             
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -389,33 +485,72 @@
                 const accessories = document.getElementById('accessories').value;
                 const weight = document.getElementById('weight').value;
                 const price = document.getElementById('price').value;
+                const tagsInput = document.getElementById('tags').value;
                 const photo = document.getElementById('photo').files[0];
                 
-                // Crear objeto con los datos
-                const record = {
-                    id: Date.now(), // ID único para identificar el registro
-                    title,
-                    date,
-                    needleType,
-                    pattern,
-                    source,
-                    measurements,
-                    accessories,
-                    weight,
-                    price,
-                    photo: photo ? URL.createObjectURL(photo) : null
-                };
+                // Procesar etiquetas
+                const tags = tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
                 
-                // Guardar en localStorage
-                saveRecord(record);
-                
-                // Actualizar la vista
-                displayRecords();
-                
-                // Limpiar formulario
-                form.reset();
-                imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
-                document.getElementById('date').value = today;
+                // Si hay foto, convertir a Base64 para guardarla correctamente
+                if (photo) {
+                    convertImageToBase64(photo, function(base64Image) {
+                        // Crear objeto con los datos
+                        const record = {
+                            id: Date.now(), // ID único para identificar el registro
+                            title,
+                            date,
+                            needleType,
+                            pattern,
+                            source,
+                            measurements,
+                            accessories,
+                            weight,
+                            price,
+                            tags,
+                            photo: base64Image
+                        };
+                        
+                        // Guardar en localStorage
+                        saveRecord(record);
+                        
+                        // Actualizar la vista
+                        displayRecords();
+                        updateFilterTags();
+                        
+                        // Limpiar formulario
+                        form.reset();
+                        imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
+                        document.getElementById('date').value = today;
+                    });
+                } else {
+                    // Crear objeto con los datos sin foto
+                    const record = {
+                        id: Date.now(),
+                        title,
+                        date,
+                        needleType,
+                        pattern,
+                        source,
+                        measurements,
+                        accessories,
+                        weight,
+                        price,
+                        tags,
+                        photo: null
+                    };
+                    
+                    // Guardar en localStorage
+                    saveRecord(record);
+                    
+                    // Actualizar la vista
+                    displayRecords();
+                    updateFilterTags();
+                    
+                    // Limpiar formulario
+                    form.reset();
+                    imagePreview.innerHTML = '<span>Vista previa de la imagen</span>';
+                    document.getElementById('date').value = today;
+                }
             });
             
             // Función para guardar registro en localStorage
@@ -432,15 +567,29 @@
                     records = records.filter(record => record.id !== id);
                     localStorage.setItem('crochetRecords', JSON.stringify(records));
                     displayRecords();
+                    updateFilterTags();
                 }
             }
             
             // Función para mostrar registros
             function displayRecords() {
                 const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
+                let filteredRecords = records;
                 
-                if (records.length === 0) {
+                // Aplicar filtros si hay activos
+                if (activeFilters.length > 0) {
+                    filteredRecords = records.filter(record => {
+                        return activeFilters.some(filter => 
+                            record.tags && record.tags.includes(filter)
+                        );
+                    });
+                }
+                
+                if (filteredRecords.length === 0) {
                     emptyState.style.display = 'block';
+                    emptyState.innerHTML = activeFilters.length > 0 
+                        ? '<p>No hay registros que coincidan con los filtros seleccionados.</p>'
+                        : '<p>No hay registros guardados aún. ¡Agrega tu primer tejido!</p>';
                     return;
                 }
                 
@@ -448,7 +597,7 @@
                 
                 recordsContainer.innerHTML = '';
                 
-                records.forEach((record) => {
+                filteredRecords.forEach((record) => {
                     const recordCard = document.createElement('div');
                     recordCard.className = 'record-card';
                     
@@ -467,6 +616,11 @@
                             ${record.accessories ? `<p class="record-info"><strong>Accesorios:</strong> ${record.accessories}</p>` : ''}
                             ${record.weight ? `<p class="record-info"><strong>Peso:</strong> ${record.weight}</p>` : ''}
                             ${record.price ? `<p class="record-price">Precio: $${parseFloat(record.price).toFixed(2)}</p>` : ''}
+                            ${record.tags && record.tags.length > 0 ? `
+                                <div class="record-tags">
+                                    ${record.tags.map(tag => `<span class="record-tag">${tag}</span>`).join('')}
+                                </div>
+                            ` : ''}
                             <button class="delete-btn" data-id="${record.id}">Eliminar</button>
                         </div>
                     `;
@@ -483,11 +637,60 @@
                 });
             }
             
+            // Función para actualizar las etiquetas de filtro
+            function updateFilterTags() {
+                const records = JSON.parse(localStorage.getItem('crochetRecords')) || [];
+                const allTags = new Set();
+                
+                // Recopilar todas las etiquetas únicas
+                records.forEach(record => {
+                    if (record.tags) {
+                        record.tags.forEach(tag => allTags.add(tag));
+                    }
+                });
+                
+                // Limpiar contenedor de etiquetas
+                filterTagsContainer.innerHTML = '';
+                
+                // Agregar etiquetas al contenedor
+                allTags.forEach(tag => {
+                    const tagElement = document.createElement('div');
+                    tagElement.className = `tag ${activeFilters.includes(tag) ? 'active' : ''}`;
+                    tagElement.textContent = tag;
+                    tagElement.addEventListener('click', function() {
+                        toggleFilter(tag);
+                    });
+                    filterTagsContainer.appendChild(tagElement);
+                });
+            }
+            
+            // Función para alternar filtros
+            function toggleFilter(tag) {
+                if (activeFilters.includes(tag)) {
+                    activeFilters = activeFilters.filter(t => t !== tag);
+                } else {
+                    activeFilters.push(tag);
+                }
+                displayRecords();
+                updateFilterTags();
+            }
+            
             // Función para formatear fecha
             function formatDate(dateString) {
                 const options = { year: 'numeric', month: 'long', day: 'numeric' };
                 return new Date(dateString).toLocaleDateString('es-ES', options);
             }
+            
+            // Event listeners para filtros
+            toggleFiltersBtn.addEventListener('click', function() {
+                filtersContainer.classList.toggle('active');
+            });
+            
+            clearFiltersBtn.addEventListener('click', function() {
+                activeFilters = [];
+                displayRecords();
+                updateFilterTags();
+            });
             
             // Función para exportar a PDF sin imágenes
             exportPdfBtn.addEventListener('click', function() {
@@ -559,6 +762,11 @@
                         yPosition += 5;
                     }
                     
+                    if (record.tags && record.tags.length > 0) {
+                        doc.text(`Etiquetas: ${record.tags.join(', ')}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
                     // Línea separadora
                     doc.line(20, yPosition, 190, yPosition);
                     yPosition += 10;
@@ -607,9 +815,7 @@
                     // Agregar imagen si existe
                     if (record.photo) {
                         try {
-                            // Convertir la imagen a formato que jsPDF pueda usar
                             const img = new Image();
-                            img.crossOrigin = "Anonymous";
                             img.src = record.photo;
                             
                             await new Promise((resolve, reject) => {
@@ -617,12 +823,12 @@
                                 img.onerror = reject;
                             });
                             
-                            // Agregar imagen al PDF (tamaño reducido para caber mejor)
+                            // Agregar imagen al PDF
                             const imgWidth = 40;
                             const imgHeight = 40;
                             doc.addImage(img, 'JPEG', 20, yPosition, imgWidth, imgHeight);
                             
-                            // Ajustar posición del texto para que no se superponga con la imagen
+                            // Ajustar posición del texto
                             const textStartX = 70;
                             
                             // Información del tejido al lado de la imagen
@@ -642,17 +848,15 @@
                                 doc.text(`Precio: $${parseFloat(record.price).toFixed(2)}`, textStartX, yPosition + 25);
                             }
                             
-                            yPosition += 45; // Espacio después de la imagen
+                            yPosition += 45;
                             
                         } catch (error) {
                             console.error('Error al cargar la imagen:', error);
-                            // Si hay error con la imagen, continuar sin ella
                             doc.setFontSize(10);
                             doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
                             yPosition += 5;
                         }
                     } else {
-                        // Sin imagen, mostrar solo texto
                         doc.setFontSize(10);
                         doc.text(`Fecha: ${formatDate(record.date)}`, 20, yPosition);
                         yPosition += 5;
@@ -679,6 +883,11 @@
                         yPosition += accessoriesLines.length * 5;
                     }
                     
+                    if (record.tags && record.tags.length > 0) {
+                        doc.text(`Etiquetas: ${record.tags.join(', ')}`, 20, yPosition);
+                        yPosition += 5;
+                    }
+                    
                     // Línea separadora
                     doc.line(20, yPosition, 190, yPosition);
                     yPosition += 15;
@@ -691,6 +900,7 @@
             
             // Mostrar registros al cargar la página
             displayRecords();
+            updateFilterTags();
         });
     </script>
 </body>
